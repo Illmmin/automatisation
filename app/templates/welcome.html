@@ -1,0 +1,27 @@
+{% extends "base.html" %}  
+{% block title %}
+    <title>Post</title>
+{% endblock %}
+
+{% block content %}
+
+        <a href="{{url_for('logout')}}">Logout</a>
+    {% with messages = get_flashed_messages()%}
+    {% if messages %}
+        <ul>
+       {% for message in messages %}
+            <li>{{message}}</li>
+        {% endfor %}
+       </ul>
+    {% endif%}
+    {%endwith%}
+
+    <table>
+    {% for post in posts%}
+        <tr><td>
+            {{post["author"]}}  {{post["date"]}} <br />
+            {{post["content"]}}
+        </tr><td>
+    {% endfor %}
+    </table>
+{% endblock %}
