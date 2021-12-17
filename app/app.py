@@ -1,22 +1,27 @@
 import json
-import pymysql.cursors
+import mysql.connector
+from flask_mysqldb import MySQL
+from mysql.connector import Error,MySQLConnection
 from flask import Flask,render_template,request,redirect,flash,url_for, session
+import bcrypt
 
-def loadUsers():
-    with open('users.json') as c:
-         listOfUsers = json.load(c)['users']
-         return listOfUsers
+app = Flask(__name__)
+app.secret_key = 'something_special'
+
+app.config['MYSQL_HOST'] = 'www.db4free.net'
+app.config['MYSQL_USER'] = 'fatima14'
+app.config['MYSQL_PASSWORD'] = 'rachidfatima'
+app.config['MYSQL_DB'] = 'dataflask'
+
+
+
+mysql = MySQL(app)
 
 def loadPosts():
     with open('post.json') as c:
         listOfPosts = json.load(c)['post']
         return listOfPosts
 
-app = Flask(__name__)
-app.secret_key = 'something_special'
-
-users = loadUsers()
-user = None
 posts = loadPosts()
 
 @app.route('/home',methods=['POST','GET'])
@@ -30,16 +35,27 @@ def home():
 def login():
     if request.method == "POST":
         if request.form["email"] != '' and request.form["password"] != '':
-            try : 
-                user = [user for user in users if user['email'] == request.form['email'] and user['password'] == request.form['password']][0]
-                if user != None : session['logged_in'] = True
-                return redirect(url_for('home'), code=307)
-            except Exception : 
-                flash("Invalids credentials",'error')
-                return redirect(url_for('login'))
+            email = request.form['email']
+            password = request.form['password']
+
+            cur = mysql.connection.cursor()
+            cur.execute("SELECT password from users where email = '"+ email+"' and password='" +password+"'")
+
+            
+            row = cur.fetchone()
+            if row == None : 
+                flash("Invalid username and password")
+                return redirect(url_for("login"))  
+            else:  
+                        
+                flash("Succesfully logged")
+                session['logged_in'] = True
+                return redirect(url_for('home'))      
+
         else:
             flash("Veuillez remplir les champs email et mot de passe", 'error')
             return redirect(url_for('login'))
+       
     return render_template("login.html")
 
 @app.route('/post')
@@ -51,49 +67,35 @@ def post():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """Register user"""
-    if "user_id" in session:
-        return redirect(url_for("login"))
-    if request.method == "GET":
+    if request.method == 'GET' :
         return render_template("register.html")
-        # loading input from form
-    name = request.form.get("name")
-    email = request.form.get("email")
-    password = request.form.get("password")
-    print(name)
-    # validating input
-    if name is None or password is None or email is None:
-        return render_template("register.html", error="Please fill all fields"), 400
+    else:
 
-    # check for email already exists
-    if user.is_email_exists(email) is not None:
-        return render_template("register.html", error="Email already exists"), 403
+        if(request.form['name'] != "" or request.form['email'] != "" or request.form['password'] != ""):
+            name = request.form['name']
+            email = request.form['email']
+            password = request.form['password'].encode('utf_8')
 
-    user_data = user.register(name, email, password)
-    if user_data is None:
-       return render_template("register.html", error="Could not add user"), 403
+            
+            cur = mysql.connection.cursor()
+            cur.execute("SELECT * from users where email = '"+ email+"'")
+            
+            row = cur.fetchone()
 
-    session["user_id"] = user_data[0]
-    session["user_name"] = user_data[1]
-    return redirect(url_for("login"))
+            if row != None : 
+                flash("Email existe déjà")
+                return render_template("register.html")
+            
+            else:
+                cur = mysql.connection.cursor()
+                cur.execute("INSERT INTO users (name,email,password) VALUES (%s,%s,%s)",(name,email,password,))
+                mysql.connection.commit()
 
-    users = {}
-    users['name'] = name
-    users['email'] = email
-    users['password'] = password
-
-    {
-        "name":"Simply Lift",
-        "email":"j@j.co",
-        "password":"azerty"
-    },
-    {
-        "name":"Simply Lift",
-        "email":"j@j.co",
-        "password":"azerty"
-    },
-    
-
+                flash("Votre compte a bien été créé, veuillez vous connecter")
+                return redirect(url_for("login"))
+        else:
+            flash("Veuillez remplir tout les champs")
+            return redirect(url_for("login"))
 
 @app.route('/logout')
 def logout():
